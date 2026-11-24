@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tolerance Tools — Engineering Calculators</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <meta name="description" content="Free online engineering calculators: Tolerance Stackup, Thermal Expansion Analysis, GD&T, and more."/>
+</head>
+<body>
+
+<!-- ── NAVBAR ── -->
+<nav class="navbar">
+  <a class="navbar-brand" href="index.html">
+    <span class="logo-icon">⚙</span>
+    Tolerance Tools
+  </a>
+  <div class="navbar-links">
+    <a href="index.html" class="active">🏠 Home</a>
+    <a href="calculators/stackup.html">📊 Stackup</a>
+    <a href="calculators/thermal.html">🌡 Thermal</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <h1>⚙ Engineering Tolerance Calculators</h1>
+  <p>Professional-grade mechanical engineering calculators — free, forever, accessible from any device anywhere.</p>
+  <div>
+    <span class="badge">✅ Lifetime Free</span>
+    <span class="badge">🌐 Works Everywhere</span>
+    <span class="badge">💾 Save Your Work</span>
+    <span class="badge">📱 Mobile Friendly</span>
+    <span class="badge">🔒 No Login Required</span>
+  </div>
+</section>
+
+<!-- ── CALCULATORS SECTION ── -->
+<div class="section">
+  <div class="section-title">🧮 Available Calculators</div>
+  <div class="cards-grid">
+
+    <!-- CARD 1: Tolerance Stackup -->
+    <a class="calc-card" href="calculators/stackup.html">
+      <div class="calc-card-header">
+        <div class="calc-card-icon" style="background:#DEEAF1;">📊</div>
+        <div>
+          <div class="calc-card-title">Tolerance Stackup Tool</div>
+          <div class="calc-card-desc">Full tolerance analysis with Worst-Case, RSS, Six-Sigma methods plus GD&T and Thermal contributions.</div>
+        </div>
+      </div>
+      <div class="calc-card-body">
+        <div class="calc-card-tags">
+          <span class="tag">Worst-Case</span>
+          <span class="tag">RSS</span>
+          <span class="tag">Six-Sigma</span>
+          <span class="tag">GD&T</span>
+          <span class="tag">Thermal</span>
+          <span class="tag">Visual Chart</span>
+        </div>
+      </div>
+      <div class="calc-card-footer">
+        <span>Up to 20 components</span>
+        <span>Open →</span>
+      </div>
+    </a>
+
+    <!-- CARD 2: Thermal Stackup -->
+    <a class="calc-card" href="calculators/thermal.html">
+      <div class="calc-card-header">
+        <div class="calc-card-icon" style="background:#EAD1DC;">🌡</div>
+        <div>
+          <div class="calc-card-title">Thermal Stackup Tool</div>
+          <div class="calc-card-desc">Clearance &amp; interference analysis across Cold, Ambient and Hot temperature ranges using CTE expansion factors.</div>
+        </div>
+      </div>
+      <div class="calc-card-body">
+        <div class="calc-card-tags">
+          <span class="tag">CTE Lookup</span>
+          <span class="tag">Clearance</span>
+          <span class="tag">Interference</span>
+          <span class="tag">Hot/Cold/Ambient</span>
+          <span class="tag">Material Library</span>
+        </div>
+      </div>
+      <div class="calc-card-footer">
+        <span>Multi-temperature analysis</span>
+        <span>Open →</span>
+      </div>
+    </a>
+
+    <!-- ADD MORE -->
+    <div class="calc-card add-card" onclick="showAddInfo()">
+      <div class="add-icon">➕</div>
+      <div>Add More Calculators</div>
+      <div style="font-size:0.78rem;opacity:0.7;text-align:center;padding:0 20px;">Click to learn how to add your own calculators to this site</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── HOW IT WORKS ── -->
+<div class="section">
+  <div class="section-title">🌐 Access From Anywhere — Free Forever</div>
+  <div class="panel">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;">
+      <div style="text-align:center;padding:16px;">
+        <div style="font-size:2rem;margin-bottom:8px;">🐙</div>
+        <div style="font-weight:700;color:var(--dark-blue);margin-bottom:6px;">1. Upload to GitHub</div>
+        <div style="font-size:0.85rem;color:var(--grey);">Push these files to a free GitHub repository (takes 2 minutes)</div>
+      </div>
+      <div style="text-align:center;padding:16px;">
+        <div style="font-size:2rem;margin-bottom:8px;">⚡</div>
+        <div style="font-weight:700;color:var(--dark-blue);margin-bottom:6px;">2. Enable GitHub Pages</div>
+        <div style="font-size:0.85rem;color:var(--grey);">One click in repository Settings → Pages. Free, permanent hosting.</div>
+      </div>
+      <div style="text-align:center;padding:16px;">
+        <div style="font-size:2rem;margin-bottom:8px;">🌍</div>
+        <div style="font-weight:700;color:var(--dark-blue);margin-bottom:6px;">3. Share Your URL</div>
+        <div style="font-size:0.85rem;color:var(--grey);">Your site is live at <strong>https://yourname.github.io/tolerance-tools</strong> — open from any PC, tablet, phone.</div>
+      </div>
+      <div style="text-align:center;padding:16px;">
+        <div style="font-size:2rem;margin-bottom:8px;">♾</div>
+        <div style="font-weight:700;color:var(--dark-blue);margin-bottom:6px;">Forever Free</div>
+        <div style="font-size:0.85rem;color:var(--grey);">GitHub Pages is completely free with no limits on page views or uptime.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD CALCULATOR MODAL ── -->
+<div id="add-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <h2 style="color:var(--dark-blue);margin-bottom:12px;">➕ How to Add More Calculators</h2>
+    <p style="font-size:0.9rem;color:var(--grey);line-height:1.6;margin-bottom:14px;">
+      This website is designed to grow. To add a new calculator:
+    </p>
+    <ol style="font-size:0.88rem;color:#444;line-height:2;padding-left:20px;">
+      <li>Copy <code>calculators/stackup.html</code> and rename it</li>
+      <li>Modify the HTML and JavaScript for your new calculator</li>
+      <li>Add a card for it in <code>index.html</code></li>
+      <li>Push to GitHub — it's live instantly!</li>
+    </ol>
+    <p style="font-size:0.82rem;color:var(--mid-blue);margin-top:14px;">💡 Ask me (Antigravity AI) to build any new calculator for you!</p>
+    <button class="btn btn-primary mt-16" onclick="document.getElementById('add-modal').classList.add('hidden')">Close</button>
+  </div>
+</div>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <strong>Tolerance Tools</strong> — Free Engineering Calculators &nbsp;|&nbsp;
+  Hosted free on <strong>GitHub Pages</strong> &nbsp;|&nbsp;
+  Works on any device, anywhere in the world &nbsp;|&nbsp; ♾ Lifetime Free
+</footer>
+
+<script>
+function showAddInfo() {
+  document.getElementById('add-modal').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
