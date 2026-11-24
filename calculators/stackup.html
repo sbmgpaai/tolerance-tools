@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tolerance Stackup Tool — Tolerance Tools</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="../index.html"><span class="logo-icon">⚙</span>Tolerance Tools</a>
+  <div class="navbar-links">
+    <a href="../index.html">🏠 Home</a>
+    <a href="stackup.html" class="active">📊 Stackup</a>
+    <a href="thermal.html">🌡 Thermal</a>
+  </div>
+</nav>
+
+<div class="calc-page">
+
+  <!-- Header -->
+  <div class="calc-page-header">
+    <div class="header-icon">📊</div>
+    <div>
+      <h1>Tolerance Stackup Analysis Tool</h1>
+      <p>GD&T · Worst-Case · RSS · Six-Sigma · Thermal Expansion · Visual Stackup — up to 20 components</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('tab-settings')">⚙ Settings</button>
+    <button class="tab-btn" onclick="showTab('tab-input')">📋 Stackup Input</button>
+    <button class="tab-btn" onclick="showTab('tab-gdt')">📐 GD&T Budget</button>
+    <button class="tab-btn" onclick="showTab('tab-thermal')">🌡 Thermal</button>
+    <button class="tab-btn" onclick="showTab('tab-results')">✅ Results</button>
+    <button class="tab-btn" onclick="showTab('tab-visual')">🖼 Visual</button>
+  </div>
+
+  <!-- ══ TAB: SETTINGS ══════════════════════════════════════════ -->
+  <div id="tab-settings" class="tab-content">
+    <div class="panel">
+      <div class="panel-title">⚙ Global Settings & Assembly Info</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Assembly Name</label>
+          <input type="text" id="s-name" value="My Assembly" oninput="recalc()"/>
+        </div>
+        <div class="form-group">
+          <label>Revision</label>
+          <input type="text" id="s-rev" value="Rev A"/>
+        </div>
+        <div class="form-group">
+          <label>Engineer</label>
+          <input type="text" id="s-eng" value="Name"/>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="s-date"/>
+        </div>
+        <div class="form-group">
+          <label>Unit</label>
+          <select id="s-unit" onchange="recalc()">
+            <option value="mm">mm</option>
+            <option value="inch">inch</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sigma Level (n)</label>
+          <input type="number" id="s-sigma" value="6" min="1" max="10" step="0.5" oninput="recalc()"/>
+        </div>
+        <div class="form-group">
+          <label>Cpk (process)</label>
+          <input type="number" id="s-cpk" value="1.33" step="0.01" oninput="recalc()"/>
+        </div>
+        <div class="form-group">
+          <label>Number of Components</label>
+          <select id="s-numrows" onchange="buildTable()">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group mt-16" style="max-width:600px;">
+        <label>Stackup Description</label>
+        <textarea id="s-desc" rows="3" style="padding:9px 12px;border:1.5px solid #d0d7e0;border-radius:6px;font-size:0.92rem;font-family:inherit;width:100%;resize:vertical;"
+          placeholder="Describe the assembly gap being analysed..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveToJSON()">💾 Save Project (JSON)</button>
+        <label class="btn btn-outline" style="cursor:pointer;">
+          📂 Load Project
+          <input type="file" id="load-file" accept=".json" style="display:none" onchange="loadFromJSON(event)"/>
+        </label>
+        <button class="btn btn-warning" onclick="resetAll()">🔄 Reset All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: STACKUP INPUT ══════════════════════════════════════ -->
+  <div id="tab-input" class="tab-content hidden">
+    <div class="info-box">
+      🟡 <strong>Yellow cells</strong> = your input &nbsp;|&nbsp;
+      🔵 Blue = auto-calculated &nbsp;|&nbsp;
+      Direction: <strong>+1</strong> = adds to gap, <strong>-1</strong> = closes gap
+    </div>
+    <div class="panel" style="padding:0;">
+      <div class="table-wrap">
+        <table class="data-table" id="stackup-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Component / Feature Name</th>
+              <th>Nominal<br/>(mm)</th>
+              <th>Tol ±<br/>(mm)</th>
+              <th>Direction<br/>(+1/-1)</th>
+              <th class="amber-hdr">% Contrib<br/>(WC)</th>
+              <th class="teal-hdr">GD&T Add-on<br/>(mm)</th>
+              <th class="purple-hdr">Thermal<br/>(mm)</th>
+              <th class="green-hdr">Total Tol<br/>(mm)</th>
+              <th class="green-hdr">Min Limit</th>
+              <th class="green-hdr">Max Limit</th>
+            </tr>
+          </thead>
+          <tbody id="stackup-body">
+            <!-- JS generated -->
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="background:var(--dark-blue);color:#fff;font-weight:700;font-size:0.82rem;padding:8px 12px;">TOTALS</td>
+              <td id="total-nom" class="output" style="background:var(--dark-blue);color:#fff;font-weight:700;"></td>
+              <td id="total-tol-wc" class="output" style="background:var(--dark-blue);color:#fff;font-weight:700;"></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td id="total-tol-all" class="output" style="background:var(--dark-blue);color:#fff;font-weight:700;"></td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: GD&T ══════════════════════════════════════════════ -->
+  <div id="tab-gdt" class="tab-content hidden">
+    <div class="info-box">📐 GD&T tolerances are automatically added to the Total Tolerance in Stackup Input. Enter tolerance zone values per component.</div>
+    <div class="panel" style="padding:0;">
+      <div class="table-wrap">
+        <table class="data-table" id="gdt-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Component (auto)</th>
+              <th class="teal-hdr">GD&T Type</th>
+              <th class="teal-hdr">Tol Zone<br/>(mm)</th>
+              <th class="teal-hdr">Datum Ref</th>
+              <th class="teal-hdr">Condition</th>
+              <th class="teal-hdr">Bonus Tol<br/>(mm)</th>
+              <th class="teal-hdr">Proj Factor</th>
+              <th class="green-hdr">Effective GD&T<br/>(mm)</th>
+            </tr>
+          </thead>
+          <tbody id="gdt-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: THERMAL ════════════════════════════════════════════ -->
+  <div id="tab-thermal" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-title">🌡 Thermal Environment</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+        <div class="temp-card ambient">
+          <div class="temp-label">Assembly Temp (T_ref)</div>
+          <input type="number" id="t-ref" value="20" oninput="recalc()" style="font-size:1.5rem;font-weight:800;background:transparent;border:none;text-align:center;width:100%;color:inherit;"/>
+          <div class="temp-unit">°C</div>
+        </div>
+        <div class="temp-card cold">
+          <div class="temp-label">Min Temp (T_cold)</div>
+          <input type="number" id="t-cold" value="-40" oninput="recalc()" style="font-size:1.5rem;font-weight:800;background:transparent;border:none;text-align:center;width:100%;color:inherit;"/>
+          <div class="temp-unit">°C</div>
+        </div>
+        <div class="temp-card hot">
+          <div class="temp-label">Max Temp (T_hot)</div>
+          <input type="number" id="t-hot" value="85" oninput="recalc()" style="font-size:1.5rem;font-weight:800;background:transparent;border:none;text-align:center;width:100%;color:inherit;"/>
+          <div class="temp-unit">°C</div>
+        </div>
+      </div>
+      <div class="info-box">
+        δ = L₀ × α × ΔT &nbsp;|&nbsp; Worst-case uses MAX(|ΔT_hot|, |ΔT_cold|) &nbsp;|&nbsp; Material CTE is looked up from the built-in library
+      </div>
+    </div>
+    <div class="panel" style="padding:0;">
+      <div class="table-wrap">
+        <table class="data-table" id="thermal-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Component (auto)</th>
+              <th>Nominal L₀<br/>(auto)</th>
+              <th class="purple-hdr">Material</th>
+              <th class="purple-hdr">CTE<br/>(µm/m·°C)</th>
+              <th class="purple-hdr">ΔT WC<br/>(°C)</th>
+              <th class="purple-hdr">Thermal Growth<br/>δ (mm)</th>
+            </tr>
+          </thead>
+          <tbody id="thermal-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: RESULTS ════════════════════════════════════════════ -->
+  <div id="tab-results" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-title">✅ Stackup Results Summary</div>
+      <div class="results-grid" id="results-grid"></div>
+      <div style="margin-top:20px;" id="verdict-area"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">📊 Sensitivity Analysis — % Tolerance Contribution</div>
+      <div class="table-wrap">
+        <table class="data-table" id="sensitivity-table">
+          <thead>
+            <tr>
+              <th>Rank</th><th>Component</th>
+              <th>Mfg Tol ±</th><th>GD&T Add-on</th><th>Thermal</th><th>Total Tol</th>
+              <th class="amber-hdr">% WC Contrib</th>
+            </tr>
+          </thead>
+          <tbody id="sensitivity-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: VISUAL ═════════════════════════════════════════════ -->
+  <div id="tab-visual" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-title">🖼 Visual Stackup — Tolerance Bar Chart</div>
+      <div class="chart-container" id="visual-chart"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;font-size:0.8rem;">
+        <span style="display:flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:3px;background:var(--mid-blue);display:inline-block;"></span>Mfg Tolerance</span>
+        <span style="display:flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:3px;background:var(--teal);display:inline-block;"></span>GD&T Add-on</span>
+        <span style="display:flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:3px;background:var(--purple);display:inline-block;"></span>Thermal</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /calc-page -->
+
+<footer>
+  <strong>Tolerance Tools</strong> — Free Engineering Calculators &nbsp;|&nbsp; <a href="../index.html" style="color:rgba(255,255,255,0.7);">← Back to Home</a>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// MATERIAL CTE DATABASE (µm/m·°C)
+// ══════════════════════════════════════════════════════════════
+const CTE_DB = {
+  "Steel (general)":       11.7,
+  "Steel (stainless 304)": 17.2,
+  "Steel (stainless 316)": 16.0,
+  "Steel (stainless 420)": 10.3,
+  "Steel (4140 HT)":       12.3,
+  "Aluminium 1100":        23.6,
+  "Aluminium 2024":        23.2,
+  "Aluminium 6061":        23.4,
+  "Aluminium 7075":        23.6,
+  "Titanium (Grade 5)":     8.6,
+  "Brass":                 18.7,
+  "Copper":                16.9,
+  "Cast Iron":             10.4,
+  "ABS Plastic":           72.0,
+  "Nylon (PA6)":           80.0,
+  "Polycarbonate":         65.0,
+  "PEEK":                  47.0,
+  "Carbon Fibre (CFRP)":    1.0,
+  "Invar (FeNi36)":         1.2,
+  "Kovar":                  5.1,
+  "Rubber (natural)":     220.0,
+  "Glass (borosilicate)":   3.3,
+  "Tungsten":               4.5,
+  "Custom":                 null,
+};
+const MAT_LIST = Object.keys(CTE_DB);
+
+const DEFAULT_DATA = [
+  { name:"Component 1", nom:10.0, tol:0.100, dir: 1 },
+  { name:"Component 2", nom: 5.0, tol:0.050, dir: 1 },
+  { name:"Component 3", nom: 3.0, tol:0.080, dir:-1 },
+  { name:"Component 4", nom: 8.0, tol:0.100, dir: 1 },
+  { name:"Component 5", nom:12.0, tol:0.120, dir:-1 },
+];
+
+let N_ROWS = 10;
+
+// ── Build rows ───────────────────────────────────────────────
+function buildTable() {
+  N_ROWS = parseInt(document.getElementById('s-numrows').value);
+  buildStackupRows();
+  buildGdtRows();
+  buildThermalRows();
+  recalc();
+}
+
+function buildStackupRows() {
+  const tbody = document.getElementById('stackup-body');
+  tbody.innerHTML = '';
+  for (let i = 0; i < N_ROWS; i++) {
+    const d = DEFAULT_DATA[i] || { name:'', nom:'', tol:'', dir:1 };
+    tbody.innerHTML += `
+    <tr>
+      <td class="row-num">${i+1}</td>
+      <td><input type="text" id="name-${i}" value="${d.name}" oninput="syncNames();recalc()"/></td>
+      <td><input type="number" id="nom-${i}" value="${d.nom}" step="0.001" oninput="recalc()"/></td>
+      <td><input type="number" id="tol-${i}" value="${d.tol}" step="0.001" min="0" oninput="recalc()"/></td>
+      <td>
+        <select id="dir-${i}" onchange="recalc()">
+          <option value="1" ${d.dir===1?'selected':''}>+1</option>
+          <option value="-1" ${d.dir===-1?'selected':''}>-1</option>
+        </select>
+      </td>
+      <td class="output" id="pct-${i}">—</td>
+      <td class="output-teal" id="gdt-out-${i}">0.000</td>
+      <td class="output-purple" id="therm-out-${i}">0.000</td>
+      <td class="output-green" id="total-tol-${i}">—</td>
+      <td class="output-red" id="min-lim-${i}">—</td>
+      <td class="output-green" id="max-lim-${i}">—</td>
+    </tr>`;
+  }
+}
+
+function buildGdtRows() {
+  const tbody = document.getElementById('gdt-body');
+  tbody.innerHTML = '';
+  for (let i = 0; i < N_ROWS; i++) {
+    const name = document.getElementById(`name-${i}`)?.value || `Component ${i+1}`;
+    tbody.innerHTML += `
+    <tr>
+      <td class="row-num">${i+1}</td>
+      <td id="gdt-name-${i}" style="text-align:left;font-style:italic;">${name}</td>
+      <td>
+        <select id="gdt-type-${i}" onchange="recalc()">
+          <option value="">—None—</option>
+          <option>Flatness</option><option>Straightness</option><option>Circularity</option>
+          <option>Cylindricity</option><option>Perpendicularity</option><option>Angularity</option>
+          <option>Parallelism</option><option>True Position</option><option>Concentricity</option>
+          <option>Symmetry</option><option>Circular Runout</option><option>Total Runout</option>
+          <option>Profile of Line</option><option>Profile of Surface</option>
+        </select>
+      </td>
+      <td><input type="number" id="gdt-tz-${i}" value="" step="0.001" min="0" placeholder="0.000" oninput="recalc()"/></td>
+      <td><input type="text" id="gdt-datum-${i}" placeholder="A" style="width:50px;"/></td>
+      <td>
+        <select id="gdt-mmc-${i}" onchange="recalc()">
+          <option value="RFS">RFS</option><option value="MMC">MMC</option><option value="LMC">LMC</option>
+        </select>
+      </td>
+      <td><input type="number" id="gdt-bonus-${i}" value="0" step="0.001" oninput="recalc()"/></td>
+      <td><input type="number" id="gdt-proj-${i}" value="1.0" step="0.1" min="0" oninput="recalc()"/></td>
+      <td class="output-teal" id="gdt-eff-${i}">0.000</td>
+    </tr>`;
+  }
+}
+
+function buildThermalRows() {
+  const tbody = document.getElementById('thermal-body');
+  tbody.innerHTML = '';
+  const defMats = ["Steel (general)","Aluminium 6061","Steel (general)","Aluminium 6061","Steel (stainless 420)"];
+  const matOpts = MAT_LIST.map(m=>`<option>${m}</option>`).join('');
+  for (let i = 0; i < N_ROWS; i++) {
+    const name = document.getElementById(`name-${i}`)?.value || `Component ${i+1}`;
+    const defMat = defMats[i] || "Steel (general)";
+    tbody.innerHTML += `
+    <tr>
+      <td class="row-num">${i+1}</td>
+      <td id="therm-name-${i}" style="text-align:left;font-style:italic;">${name}</td>
+      <td id="therm-nom-${i}" class="output">—</td>
+      <td>
+        <select id="mat-${i}" onchange="recalc()">
+          ${MAT_LIST.map(m=>`<option${m===defMat?' selected':''}>${m}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="number" id="cte-${i}" placeholder="auto" oninput="recalc()" style="width:70px;"/></td>
+      <td class="output-purple" id="dt-out-${i}">—</td>
+      <td class="output-purple" id="therm-delta-${i}">0.0000</td>
+    </tr>`;
+  }
+}
+
+// ── Sync names across tabs ───────────────────────────────────
+function syncNames() {
+  for (let i = 0; i < N_ROWS; i++) {
+    const name = document.getElementById(`name-${i}`)?.value || `Component ${i+1}`;
+    const gn = document.getElementById(`gdt-name-${i}`);
+    const tn = document.getElementById(`therm-name-${i}`);
+    if (gn) gn.textContent = name;
+    if (tn) tn.textContent = name;
+  }
+}
+
+// ── Main recalc ──────────────────────────────────────────────
+function recalc() {
+  syncNames();
+  const tRef  = parseFloat(document.getElementById('t-ref')?.value)  || 20;
+  const tCold = parseFloat(document.getElementById('t-cold')?.value) || -40;
+  const tHot  = parseFloat(document.getElementById('t-hot')?.value)  || 85;
+  const dtWC  = Math.max(Math.abs(tHot - tRef), Math.abs(tCold - tRef));
+
+  let rows = [];
+  for (let i = 0; i < N_ROWS; i++) {
+    const name = document.getElementById(`name-${i}`)?.value || '';
+    const nom  = parseFloat(document.getElementById(`nom-${i}`)?.value) || 0;
+    const tol  = parseFloat(document.getElementById(`tol-${i}`)?.value) || 0;
+    const dir  = parseFloat(document.getElementById(`dir-${i}`)?.value) || 1;
+
+    // GD&T
+    const tzRaw = parseFloat(document.getElementById(`gdt-tz-${i}`)?.value) || 0;
+    const bonus = parseFloat(document.getElementById(`gdt-bonus-${i}`)?.value) || 0;
+    const proj  = parseFloat(document.getElementById(`gdt-proj-${i}`)?.value) || 1;
+    const gdtEff = nom > 0 || tol > 0 ? (tzRaw/2 + bonus) * proj : 0;
+    const gdtEl = document.getElementById(`gdt-eff-${i}`);
+    if (gdtEl) gdtEl.textContent = gdtEff.toFixed(3);
+
+    // Thermal
+    const matSel = document.getElementById(`mat-${i}`)?.value || '';
+    const manualCTE = document.getElementById(`cte-${i}`)?.value;
+    let cte = manualCTE !== '' && manualCTE !== null
+              ? (parseFloat(manualCTE) || 0)
+              : (CTE_DB[matSel] || 0);
+    const therm = nom > 0 ? Math.abs(nom * (cte / 1_000_000) * dtWC) : 0;
+
+    const dtEl  = document.getElementById(`dt-out-${i}`);
+    const tdEl  = document.getElementById(`therm-delta-${i}`);
+    const tnomEl= document.getElementById(`therm-nom-${i}`);
+    if (dtEl)   dtEl.textContent   = nom > 0 ? dtWC.toFixed(1) : '—';
+    if (tdEl)   tdEl.textContent   = therm.toFixed(4);
+    if (tnomEl) tnomEl.textContent = nom > 0 ? nom.toFixed(3) : '—';
+
+    // Write back to stackup tab
+    const goEl = document.getElementById(`gdt-out-${i}`);
+    const toEl = document.getElementById(`therm-out-${i}`);
+    if (goEl) goEl.textContent = gdtEff.toFixed(3);
+    if (toEl) toEl.textContent = therm.toFixed(4);
+
+    const totalTol = tol + gdtEff + therm;
+    const totEl    = document.getElementById(`total-tol-${i}`);
+    const minEl    = document.getElementById(`min-lim-${i}`);
+    const maxEl    = document.getElementById(`max-lim-${i}`);
+    if (totEl) totEl.textContent = nom > 0 || tol > 0 ? totalTol.toFixed(3) : '—';
+    if (minEl) minEl.textContent = nom > 0 ? (nom - totalTol).toFixed(3) : '—';
+    if (maxEl) maxEl.textContent = nom > 0 ? (nom + totalTol).toFixed(3) : '—';
+
+    if (nom > 0 || tol > 0 || name) {
+      rows.push({ name: name || `Comp ${i+1}`, nom, tol, dir, gdtEff, therm, totalTol });
+    }
+  }
+
+  // % Contribution WC
+  const sumTolWC = rows.reduce((s,r) => s + r.tol, 0);
+  for (let i = 0; i < N_ROWS; i++) {
+    const r = rows[i] || null;
+    const pctEl = document.getElementById(`pct-${i}`);
+    if (!pctEl) continue;
+    if (r && sumTolWC > 0) {
+      pctEl.textContent = (r.tol / sumTolWC * 100).toFixed(1) + '%';
+    } else {
+      pctEl.textContent = '—';
+    }
+  }
+
+  // Totals row
+  const sumNom    = rows.reduce((s,r) => s + r.nom * r.dir, 0);
+  const sumTolAll = rows.reduce((s,r) => s + r.totalTol, 0);
+  const tnEl = document.getElementById('total-nom');
+  const twEl = document.getElementById('total-tol-wc');
+  const taEl = document.getElementById('total-tol-all');
+  if (tnEl) tnEl.textContent = sumNom.toFixed(3);
+  if (twEl) twEl.textContent = sumTolWC.toFixed(3);
+  if (taEl) taEl.textContent = sumTolAll.toFixed(3);
+
+  // Results
+  buildResults(rows, sumNom, sumTolAll, sumTolWC);
+  buildSensitivity(rows, sumTolWC);
+  buildVisual(rows);
+}
+
+// ── Results ──────────────────────────────────────────────────
+function buildResults(rows, sumNom, sumTolAll, sumTolWC) {
+  const sigma = parseFloat(document.getElementById('s-sigma')?.value) || 6;
+  const cpk   = parseFloat(document.getElementById('s-cpk')?.value)   || 1.33;
+
+  const wcGapMin = sumNom - sumTolAll;
+  const wcGapMax = sumNom + sumTolAll;
+  const rss      = Math.sqrt(rows.reduce((s,r) => s + r.totalTol**2, 0));
+  const rssMin   = sumNom - rss;
+  const rssMax   = sumNom + rss;
+  const sixSigTol= sigma / (3 * cpk) * rss;
+  const ssMin    = sumNom - sixSigTol;
+  const ssMax    = sumNom + sixSigTol;
+  const unit     = document.getElementById('s-unit')?.value || 'mm';
+  const thermTot = rows.reduce((s,r) => s + r.therm, 0);
+
+  document.getElementById('results-grid').innerHTML = `
+    <div class="result-card blue"><div class="label">Nominal Stack (Σ Nom×Dir)</div><div class="value">${sumNom.toFixed(3)}</div><div class="sub">${unit}</div></div>
+    <div class="result-card red"><div class="label">WC Gap MIN</div><div class="value">${wcGapMin.toFixed(3)}</div><div class="sub">${unit} — Worst-case minimum</div></div>
+    <div class="result-card green"><div class="label">WC Gap MAX</div><div class="value">${wcGapMax.toFixed(3)}</div><div class="sub">${unit} — Worst-case maximum</div></div>
+    <div class="result-card blue"><div class="label">RSS Gap MIN</div><div class="value">${rssMin.toFixed(3)}</div><div class="sub">${unit} — Statistical (RSS)</div></div>
+    <div class="result-card green"><div class="label">RSS Gap MAX</div><div class="value">${rssMax.toFixed(3)}</div><div class="sub">${unit} — Statistical (RSS)</div></div>
+    <div class="result-card amber"><div class="label">Six-Sigma (${sigma}σ) MIN</div><div class="value">${ssMin.toFixed(3)}</div><div class="sub">${unit} — Cpk=${cpk}</div></div>
+    <div class="result-card green"><div class="label">Six-Sigma MAX</div><div class="value">${ssMax.toFixed(3)}</div><div class="sub">${unit}</div></div>
+    <div class="result-card purple"><div class="label">Total Thermal Shift</div><div class="value">${thermTot.toFixed(4)}</div><div class="sub">${unit} worst-case</div></div>
+    <div class="result-card blue"><div class="label">Total WC Tolerance</div><div class="value">±${sumTolAll.toFixed(3)}</div><div class="sub">${unit}</div></div>
+    <div class="result-card teal"><div class="label">RSS Tolerance</div><div class="value">±${rss.toFixed(3)}</div><div class="sub">${unit}</div></div>
+  `;
+
+  const pass = wcGapMin >= 0;
+  const rssPass = rssMin >= 0;
+  document.getElementById('verdict-area').innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+      <div>
+        <div style="font-size:0.75rem;color:var(--grey);margin-bottom:4px;">WORST-CASE VERDICT</div>
+        <span class="verdict ${pass?'pass':'fail'}">${pass?'✅ PASS — Clearance OK':'⚠ FAIL — Interference!'}</span>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;color:var(--grey);margin-bottom:4px;">RSS VERDICT</div>
+        <span class="verdict ${rssPass?'pass':'warn'}">${rssPass?'✅ PASS (RSS)':'⚠ FAIL (RSS)'}</span>
+      </div>
+    </div>
+  `;
+}
+
+// ── Sensitivity ──────────────────────────────────────────────
+function buildSensitivity(rows, sumTolWC) {
+  const sorted = [...rows].filter(r=>r.tol>0 || r.gdtEff>0 || r.therm>0)
+                           .sort((a,b) => b.totalTol - a.totalTol);
+  document.getElementById('sensitivity-body').innerHTML = sorted.map((r,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td style="text-align:left;">${r.name}</td>
+      <td>±${r.tol.toFixed(3)}</td>
+      <td>${r.gdtEff.toFixed(3)}</td>
+      <td>${r.therm.toFixed(4)}</td>
+      <td><strong>±${r.totalTol.toFixed(3)}</strong></td>
+      <td class="output">${sumTolWC>0?(r.tol/sumTolWC*100).toFixed(1)+'%':'—'}</td>
+    </tr>`).join('');
+}
+
+// ── Visual chart ─────────────────────────────────────────────
+function buildVisual(rows) {
+  const container = document.getElementById('visual-chart');
+  if (!container) return;
+  const active = rows.filter(r => r.nom > 0);
+  if (!active.length) { container.innerHTML = '<div style="margin:auto;color:var(--grey);">Enter component data to see the chart</div>'; return; }
+  const maxTot = Math.max(...active.map(r => r.totalTol));
+  const h = container.offsetHeight - 60 || 260;
+  container.innerHTML = active.map(r => {
+    const pMfg   = Math.round((r.tol    / maxTot) * h);
+    const pGdt   = Math.round((r.gdtEff / maxTot) * h);
+    const pTherm = Math.round((r.therm  / maxTot) * h);
+    return `
+    <div class="chart-bar-wrap" title="${r.name}: ±${r.totalTol.toFixed(3)}">
+      <div class="chart-bar" style="height:${pMfg}px;background:var(--mid-blue);">
+        <span class="bar-label">${r.tol.toFixed(3)}</span>
+      </div>
+      ${pGdt>0?`<div class="chart-bar" style="height:${pGdt}px;background:var(--teal);"></div>`:''}
+      ${pTherm>0?`<div class="chart-bar" style="height:${pTherm}px;background:var(--purple);"></div>`:''}
+      <div class="chart-bar-name" title="${r.name}">${r.name}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Tabs ─────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach((btn,i) => {
+    const ids=['tab-settings','tab-input','tab-gdt','tab-thermal','tab-results','tab-visual'];
+    btn.classList.toggle('active', ids[i]===id);
+  });
+  if (id === 'tab-visual') setTimeout(()=>recalc(),50);
+}
+
+// ── Save / Load ───────────────────────────────────────────────
+function saveToJSON() {
+  const data = {
+    settings: {
+      name:   document.getElementById('s-name')?.value,
+      rev:    document.getElementById('s-rev')?.value,
+      eng:    document.getElementById('s-eng')?.value,
+      date:   document.getElementById('s-date')?.value,
+      unit:   document.getElementById('s-unit')?.value,
+      sigma:  document.getElementById('s-sigma')?.value,
+      cpk:    document.getElementById('s-cpk')?.value,
+      numrows:document.getElementById('s-numrows')?.value,
+      desc:   document.getElementById('s-desc')?.value,
+      tRef:   document.getElementById('t-ref')?.value,
+      tCold:  document.getElementById('t-cold')?.value,
+      tHot:   document.getElementById('t-hot')?.value,
+    },
+    rows: []
+  };
+  for (let i = 0; i < N_ROWS; i++) {
+    data.rows.push({
+      name:  document.getElementById(`name-${i}`)?.value,
+      nom:   document.getElementById(`nom-${i}`)?.value,
+      tol:   document.getElementById(`tol-${i}`)?.value,
+      dir:   document.getElementById(`dir-${i}`)?.value,
+      gdtType: document.getElementById(`gdt-type-${i}`)?.value,
+      gdtTz:   document.getElementById(`gdt-tz-${i}`)?.value,
+      gdtBonus:document.getElementById(`gdt-bonus-${i}`)?.value,
+      gdtProj: document.getElementById(`gdt-proj-${i}`)?.value,
+      mat:   document.getElementById(`mat-${i}`)?.value,
+      cte:   document.getElementById(`cte-${i}`)?.value,
+    });
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (data.settings.name || 'stackup') + '.json';
+  a.click();
+}
+
+function loadFromJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const s = data.settings || {};
+      const setVal = (id, v) => { const el=document.getElementById(id); if(el&&v!==undefined) el.value=v; };
+      setVal('s-name', s.name); setVal('s-rev', s.rev); setVal('s-eng', s.eng);
+      setVal('s-date', s.date); setVal('s-unit', s.unit); setVal('s-sigma', s.sigma);
+      setVal('s-cpk', s.cpk); setVal('s-numrows', s.numrows); setVal('s-desc', s.desc);
+      setVal('t-ref', s.tRef); setVal('t-cold', s.tCold); setVal('t-hot', s.tHot);
+      N_ROWS = parseInt(s.numrows) || 10;
+      buildTable();
+      (data.rows || []).forEach((r, i) => {
+        if (i >= N_ROWS) return;
+        setVal(`name-${i}`, r.name); setVal(`nom-${i}`, r.nom);
+        setVal(`tol-${i}`, r.tol);  setVal(`dir-${i}`, r.dir);
+        setVal(`gdt-type-${i}`, r.gdtType); setVal(`gdt-tz-${i}`, r.gdtTz);
+        setVal(`gdt-bonus-${i}`, r.gdtBonus); setVal(`gdt-proj-${i}`, r.gdtProj);
+        setVal(`mat-${i}`, r.mat); setVal(`cte-${i}`, r.cte);
+      });
+      recalc();
+    } catch(err) { alert('Could not load file: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function resetAll() {
+  if (!confirm('Reset all data to defaults?')) return;
+  buildTable();
+  for(let i=0;i<DEFAULT_DATA.length&&i<N_ROWS;i++){
+    const d=DEFAULT_DATA[i];
+    document.getElementById(`name-${i}`).value=d.name;
+    document.getElementById(`nom-${i}`).value=d.nom;
+    document.getElementById(`tol-${i}`).value=d.tol;
+    document.getElementById(`dir-${i}`).value=d.dir;
+  }
+  recalc();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('s-date').value = new Date().toISOString().slice(0,10);
+  buildTable();
+});
+</script>
+</body>
+</html>
