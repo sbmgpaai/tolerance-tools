@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Thermal Stackup Tool — Tolerance Tools</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="../index.html"><span class="logo-icon">⚙</span>Tolerance Tools</a>
+  <div class="navbar-links">
+    <a href="../index.html">🏠 Home</a>
+    <a href="stackup.html">📊 Stackup</a>
+    <a href="thermal.html" class="active">🌡 Thermal</a>
+  </div>
+</nav>
+
+<div class="calc-page">
+
+  <!-- Header -->
+  <div class="calc-page-header" style="background:linear-gradient(135deg,#4a1070 0%,#7030A0 100%);">
+    <div class="header-icon">🌡</div>
+    <div>
+      <h1>Thermal Stackup Tool</h1>
+      <p>Clearance &amp; Interference analysis across Cold, Ambient and Hot temperature ranges using CTE expansion factors</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('tab-temps')">🌡 Temperatures</button>
+    <button class="tab-btn" onclick="showTab('tab-components')">🔩 Components</button>
+    <button class="tab-btn" onclick="showTab('tab-clearance')">📏 Clearance</button>
+    <button class="tab-btn" onclick="showTab('tab-summary')">✅ Summary</button>
+    <button class="tab-btn" onclick="showTab('tab-matlib')">📚 Material Library</button>
+  </div>
+
+  <!-- ══ TAB: TEMPERATURES ══════════════════════════════════════ -->
+  <div id="tab-temps" class="tab-content">
+    <div class="panel">
+      <div class="panel-title">🌡 Temperature Environment Settings</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;">
+        <div class="temp-card ambient" style="min-width:180px;">
+          <div class="temp-label">Assembly / Reference Temp</div>
+          <input type="number" id="t-ambient" value="20" oninput="recalc()"
+            style="font-size:1.8rem;font-weight:800;background:transparent;border:none;border-bottom:2px solid currentColor;text-align:center;width:100%;color:inherit;"/>
+          <div class="temp-unit">°C &nbsp;(T_ref)</div>
+        </div>
+        <div class="temp-card cold" style="min-width:180px;">
+          <div class="temp-label">Cold / Minimum Temp</div>
+          <input type="number" id="t-cold" value="-40" oninput="recalc()"
+            style="font-size:1.8rem;font-weight:800;background:transparent;border:none;border-bottom:2px solid currentColor;text-align:center;width:100%;color:inherit;"/>
+          <div class="temp-unit">°C &nbsp;(T_cold)</div>
+        </div>
+        <div class="temp-card hot" style="min-width:180px;">
+          <div class="temp-label">Hot / Maximum Temp</div>
+          <input type="number" id="t-hot" value="80" oninput="recalc()"
+            style="font-size:1.8rem;font-weight:800;background:transparent;border:none;border-bottom:2px solid currentColor;text-align:center;width:100%;color:inherit;"/>
+          <div class="temp-unit">°C &nbsp;(T_hot)</div>
+        </div>
+      </div>
+      <!-- Delta T display -->
+      <div class="results-grid" id="dt-cards"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📋 Assembly Information</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Model Name</label>
+          <input type="text" id="p-model" value="My Assembly"/>
+        </div>
+        <div class="form-group">
+          <label>Part Number</label>
+          <input type="text" id="p-pn" value="PN-001"/>
+        </div>
+        <div class="form-group">
+          <label>Calculated By</label>
+          <input type="text" id="p-eng" value="Engineer"/>
+        </div>
+        <div class="form-group">
+          <label>Approved By</label>
+          <input type="text" id="p-appr" value="Manager"/>
+        </div>
+        <div class="form-group">
+          <label>Revision</label>
+          <input type="text" id="p-rev" value="A"/>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="p-date"/>
+        </div>
+        <div class="form-group">
+          <label>Number of Components</label>
+          <select id="p-numrows" onchange="buildTables()">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveToJSON()">💾 Save Project</button>
+        <label class="btn btn-outline" style="cursor:pointer;">
+          📂 Load Project
+          <input type="file" id="load-file" accept=".json" style="display:none" onchange="loadFromJSON(event)"/>
+        </label>
+        <button class="btn btn-warning" onclick="resetAll()">🔄 Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: COMPONENTS ════════════════════════════════════════ -->
+  <div id="tab-components" class="tab-content hidden">
+    <div class="info-box">
+      🟡 <strong>Yellow = your input</strong> &nbsp;|&nbsp;
+      🔵 Blue = auto CTE lookup from Material Library &nbsp;|&nbsp;
+      🟣 Purple = Cold thermal limits &nbsp;|&nbsp;
+      🔴 Red = Hot thermal limits
+    </div>
+    <div class="panel" style="padding:0;">
+      <div class="table-wrap">
+        <table class="data-table" id="comp-table">
+          <thead>
+            <tr>
+              <th rowspan="2">#</th>
+              <th rowspan="2">Component</th>
+              <th rowspan="2">Material Grade</th>
+              <th colspan="3" class="teal-hdr">Thermal Properties</th>
+              <th rowspan="2">Feature Name</th>
+              <th rowspan="2">Ref</th>
+              <th colspan="4" class="teal-hdr">Ambient</th>
+              <th colspan="2" class="purple-hdr">With Cold</th>
+              <th colspan="2" style="background:var(--red);color:#fff;">With Hot</th>
+            </tr>
+            <tr>
+              <th class="teal-hdr">CTE<br/>(µm/m·°C)</th>
+              <th class="purple-hdr">Exp Factor<br/>Cold</th>
+              <th style="background:var(--red);color:#fff;">Exp Factor<br/>Hot</th>
+              <th class="teal-hdr">Ambient/<br/>Mean</th>
+              <th class="teal-hdr">Nominal</th>
+              <th class="teal-hdr">Lower Tol</th>
+              <th class="teal-hdr">Upper Tol</th>
+              <th class="purple-hdr">Min Cold</th>
+              <th class="purple-hdr">Max Cold</th>
+              <th style="background:#ffc7ce;color:#c00000;">Min Hot</th>
+              <th style="background:#ffc7ce;color:#c00000;">Max Hot</th>
+            </tr>
+          </thead>
+          <tbody id="comp-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: CLEARANCE ═════════════════════════════════════════ -->
+  <div id="tab-clearance" class="tab-content hidden">
+    <div class="info-box">
+      Define clearance/interference pairs. Enter the row numbers from the Components tab.
+      <strong>Positive = Clearance ✅ &nbsp;|&nbsp; Negative = Interference ⚠</strong>
+    </div>
+    <div class="panel" style="padding:0;">
+      <div class="table-wrap">
+        <table class="data-table" id="clr-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Description</th>
+              <th>Hole<br/>Row #</th>
+              <th>Shaft<br/>Row #</th>
+              <th class="teal-hdr">Amb Min<br/>Clearance</th>
+              <th class="teal-hdr">Amb Max<br/>Clearance</th>
+              <th class="purple-hdr">Cold Min<br/>Clearance</th>
+              <th class="purple-hdr">Cold Max<br/>Clearance</th>
+              <th style="background:var(--red);color:#fff;">Hot Min<br/>Clearance</th>
+              <th style="background:var(--red);color:#fff;">Hot Max<br/>Clearance</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody id="clr-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel mt-16">
+      <div class="panel-title">➕ Add / Manage Clearance Pairs</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="new-desc" value="Clearance: Hole - Shaft" style="width:220px;"/>
+        </div>
+        <div class="form-group">
+          <label>Hole Row #</label>
+          <input type="number" id="new-hole" value="1" min="1" style="width:80px;"/>
+        </div>
+        <div class="form-group">
+          <label>Shaft Row #</label>
+          <input type="number" id="new-shaft" value="2" min="1" style="width:80px;"/>
+        </div>
+        <button class="btn btn-primary" onclick="addClearancePair()">➕ Add Pair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: SUMMARY ═══════════════════════════════════════════ -->
+  <div id="tab-summary" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-title">✅ Tolerance Summary per Component</div>
+      <div class="table-wrap">
+        <table class="data-table" id="summary-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Component</th>
+              <th class="teal-hdr">Band Ambient<br/>(Max−Min)</th>
+              <th class="purple-hdr">Band Cold</th>
+              <th style="background:var(--red);color:#fff;">Band Hot</th>
+              <th class="purple-hdr">Thermal Shift<br/>@ Cold</th>
+              <th style="background:var(--red);color:#fff;">Thermal Shift<br/>@ Hot</th>
+              <th class="purple-hdr">% Change<br/>Cold</th>
+              <th style="background:var(--red);color:#fff;">% Change<br/>Hot</th>
+            </tr>
+          </thead>
+          <tbody id="summary-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel mt-16" id="verdict-panel"></div>
+  </div>
+
+  <!-- ══ TAB: MATERIAL LIBRARY ══════════════════════════════════ -->
+  <div id="tab-matlib" class="tab-content hidden">
+    <div class="panel">
+      <div class="panel-title">📚 Material CTE Reference Library</div>
+      <div class="info-box">CTE values at 20 °C. Use the Material column in the Components tab to auto-lookup CTE.</div>
+      <div class="table-wrap">
+        <table class="data-table" id="matlib-table">
+          <thead>
+            <tr>
+              <th>Material / Alloy</th>
+              <th class="teal-hdr">CTE<br/>(µm/m·°C)</th>
+              <th>Density<br/>(g/cm³)</th>
+              <th>E-Mod<br/>(GPa)</th>
+              <th>Yield Str<br/>(MPa)</th>
+              <th>UTS<br/>(MPa)</th>
+              <th>Max Svc<br/>Temp (°C)</th>
+              <th>Min Svc<br/>Temp (°C)</th>
+              <th>Standard / Grade</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="matlib-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /calc-page -->
+
+<footer>
+  <strong>Tolerance Tools</strong> — Free Engineering Calculators &nbsp;|&nbsp;
+  <a href="../index.html" style="color:rgba(255,255,255,0.7);">← Back to Home</a>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// MATERIAL DATABASE
+// ══════════════════════════════════════════════════════════════
+const MATERIALS = [
+  // [Name, CTE, density, E-mod, Yield, UTS, maxTemp, minTemp, Standard, Notes]
+  ["— CARBON & ALLOY STEELS —", null,null,null,null,null,null,null,"",""],
+  ["Steel, Mild / AISI 1020",        11.7, 7.85, 200, 210,  380,  500, -60, "AISI 1020 / EN 1.0402",  "General structural, shafts"],
+  ["Steel, Medium Carbon / AISI 1045",11.5,7.85, 200, 310,  570,  500, -40, "AISI 1045 / EN 1.0503",  "Axles, gears, bolts"],
+  ["Steel, Alloy / 4140 (HT)",        12.3, 7.85, 200, 655, 1020,  540, -60, "AISI 4140 / EN 1.7225",  "Crankshafts, gears, dies"],
+  ["Steel, Alloy / 4340 (HT)",        12.3, 7.85, 205, 862, 1090,  480, -60, "AISI 4340 / EN 1.6565",  "Aircraft landing gear, bolts"],
+  ["— STAINLESS STEELS —",           null,null,null,null,null,null,null,"",""],
+  ["SS 304 (Austenitic)",             17.2, 7.93, 193, 215,  505,  870,-196, "AISI 304 / EN 1.4301",   "Food, chemical, corrosion"],
+  ["SS 316 (Austenitic)",             16.0, 7.98, 193, 205,  515,  870,-196, "AISI 316 / EN 1.4401",   "Marine, pharmaceutical"],
+  ["SS 420 / AISI 420 DIN X40CR13",  10.3, 7.74, 200, 650,  860,  650, -20, "AISI 420 / DIN X40Cr13", "Surgical, valves, springs"],
+  ["SS 440C (Martensitic)",           10.2, 7.80, 200, 440,  760,  650, -20, "AISI 440C / EN 1.4125",  "Bearings, cutlery"],
+  ["SS 17-4 PH",                      10.8, 7.78, 196,1170, 1310,  400, -60, "17-4 PH / EN 1.4542",    "Aerospace, medical"],
+  ["SS 2205 Duplex",                  13.0, 7.80, 200, 450,  655,  600, -50, "EN 1.4462",              "Oil & gas, pressure vessels"],
+  ["— TOOL STEELS —",                null,null,null,null,null,null,null,"",""],
+  ["Tool Steel H13 (Hot Work)",       11.0, 7.76, 215,1380, 1550,  650, -20, "AISI H13 / EN 1.2344",   "Die casting, extrusion tools"],
+  ["Tool Steel D2 (Cold Work)",       11.0, 7.70, 207,1400, 1700,  500, -20, "AISI D2 / EN 1.2379",    "Blanking dies, wear parts"],
+  ["— ALUMINIUM ALLOYS —",           null,null,null,null,null,null,null,"",""],
+  ["Aluminium 1100 (Pure)",           23.6, 2.71,  69,  34,  124,  200,-200, "AA1100",                 "Electrical, food, chemical"],
+  ["Aluminium 2024-T3",               23.2, 2.78,  73, 345,  483,  200,-200, "AA2024 / AMS 2772",      "Aircraft skin, fittings"],
+  ["Aluminium 6061-T6",               23.4, 2.70,  69, 276,  310,  150,-200, "AA6061 / AMS 2770",      "Structural, marine, auto"],
+  ["Aluminium 7075-T6",               23.6, 2.81,  72, 503,  572,  120,-200, "AA7075 / AMS 2770",      "Aircraft structure, fatigue"],
+  ["— TITANIUM —",                   null,null,null,null,null,null,null,"",""],
+  ["Titanium Grade 2 (CP)",            8.9, 4.51, 103, 275,  345,  300,-250, "ASTM B265 Gr2",          "Chemical, marine, medical"],
+  ["Titanium Grade 5 (Ti-6Al-4V)",     8.6, 4.43, 114, 880,  950,  300,-200, "AMS 4928",               "Aerospace, medical implants"],
+  ["— COPPER ALLOYS —",              null,null,null,null,null,null,null,"",""],
+  ["Copper (pure)",                   16.9, 8.96, 110, 100,  220,  200,-200, "CW004A / C10200",        "Electrical, thermal"],
+  ["Brass (CuZn30)",                  18.7, 8.53, 100, 100,  340,  150,-100, "CW508L / C26000",        "Fittings, valves, electrical"],
+  ["Bronze (CuSn8)",                  18.0, 8.80, 110, 220,  380,  200,-200, "CW453K / C52100",        "Bearings, bushings, springs"],
+  ["— PLASTICS —",                   null,null,null,null,null,null,null,"",""],
+  ["ABS",                             72.0, 1.05,   2,  40,   40,   80, -20, "ISO 1163",               "Consumer products, housings"],
+  ["Nylon PA6",                       80.0, 1.14,   3,  60,   75,  120, -40, "ISO 1874",               "Gears, bearings, structural"],
+  ["Polycarbonate (PC)",              65.0, 1.20,   2,  60,   65,  120, -40, "ISO 7391",               "Lenses, enclosures"],
+  ["PEEK",                            47.0, 1.32,   4, 100,  100,  260, -60, "ASTM D6779",             "High-temp, chemical resist."],
+  ["PTFE (Teflon)",                  112.0, 2.20,   0.5,  14,  28,  260,-200, "ASTM D3307",            "Seals, chemical, non-stick"],
+  ["— COMPOSITES —",                 null,null,null,null,null,null,null,"",""],
+  ["Carbon Fibre / Epoxy (0°)",        1.0, 1.60, 135, 900, 1200,  200,-200, "Various",                "Aerospace, motorsport"],
+  ["Carbon Fibre / Epoxy (quasi)",     3.0, 1.60,  70, 500,  600,  200,-200, "Various",                "General structural CFRP"],
+  ["Glass Fibre / Epoxy",             14.0, 1.90,  25, 300,  400,  200,-50,  "Various",                "Marine, electrical"],
+  ["— SPECIAL ALLOYS —",             null,null,null,null,null,null,null,"",""],
+  ["Invar (FeNi36)",                   1.2, 8.10, 141, 240,  450,  200,-200, "ASTM F1684",             "Precision instruments, moulds"],
+  ["Kovar (FeNiCo)",                   5.1, 8.36, 138, 275,  517,  450,-200, "ASTM F15",               "Glass-metal seals, electronics"],
+  ["Tungsten",                          4.5,19.25, 411, 750,  980, 1600,-200, "ASTM B760",              "High-temp, radiation shielding"],
+  ["Molybdenum",                        4.8,10.22, 329, 500,  630, 1800,-200, "ASTM B386",              "High-temp structural"],
+];
+
+const CTE_MAP = {};
+MATERIALS.forEach(m => { if(m[1] !== null) CTE_MAP[m[0]] = m[1]; });
+const MAT_NAMES = MATERIALS.filter(m=>m[1]!==null).map(m=>m[0]);
+
+let N_ROWS = 10;
+let clearancePairs = [
+  { desc:"Clearance: Washer ID – Pin OD", hole:1, shaft:2 }
+];
+
+// ── Computed component data (populated by recalc) ─────────────
+let compData = [];  // {ambMin, ambMax, coldMin, coldMax, hotMin, hotMax}
+
+// ══════════════════════════════════════════════════════════════
+// BUILD TABLES
+// ══════════════════════════════════════════════════════════════
+function buildTables() {
+  N_ROWS = parseInt(document.getElementById('p-numrows').value);
+  buildCompTable();
+  buildClrTable();
+  buildSummaryTable();
+  buildMatLib();
+  recalc();
+}
+
+const EXAMPLE = [
+  { comp:"Washer",    mat:"SS 420 / AISI 420 DIN X40CR13", feat:"ID",           ref:"ØA", mean:4.1500, nom:4.100, ltol: 0.000, utol:0.100 },
+  { comp:"Guiding PIN",mat:"SS 420 / AISI 420 DIN X40CR13",feat:"ID Cylindrical",ref:"ØB",mean:3.9910,nom:4.000, ltol:-0.080, utol:0.009 },
+];
+
+function buildCompTable() {
+  const tbody = document.getElementById('comp-body');
+  tbody.innerHTML = '';
+  const matOpts = MAT_NAMES.map(m=>`<option>${m}</option>`).join('');
+  for (let i = 0; i < N_ROWS; i++) {
+    const e = EXAMPLE[i] || {};
+    tbody.innerHTML += `
+    <tr>
+      <td class="row-num">${i+1}</td>
+      <td><input type="text"   id="c-comp-${i}" value="${e.comp||''}"  oninput="recalc()" style="width:100px;"/></td>
+      <td>
+        <select id="c-mat-${i}" onchange="autoFillCTE(${i});recalc()">
+          <option value="">—Select—</option>
+          ${MAT_NAMES.map(m=>`<option${e.mat===m?' selected':''}>${m}</option>`).join('')}
+        </select>
+      </td>
+      <td class="output" id="c-cte-${i}" style="background:var(--xlight);min-width:60px;"></td>
+      <td class="output-purple" id="c-ef-cold-${i}">—</td>
+      <td class="output" id="c-ef-hot-${i}" style="background:#ffc7ce;color:#c00000;">—</td>
+      <td><input type="text"   id="c-feat-${i}" value="${e.feat||''}" style="width:90px;"/></td>
+      <td><input type="text"   id="c-ref-${i}"  value="${e.ref||''}"  style="width:40px;"/></td>
+      <td><input type="number" id="c-mean-${i}" value="${e.mean!==undefined?e.mean:''}" step="0.0001" oninput="recalc()" style="width:70px;"/></td>
+      <td><input type="number" id="c-nom-${i}"  value="${e.nom!==undefined?e.nom:''}"  step="0.001"  oninput="recalc()" style="width:70px;"/></td>
+      <td><input type="number" id="c-ltol-${i}" value="${e.ltol!==undefined?e.ltol:''}" step="0.001" oninput="recalc()" style="width:70px;"/></td>
+      <td><input type="number" id="c-utol-${i}" value="${e.utol!==undefined?e.utol:''}" step="0.001" oninput="recalc()" style="width:70px;"/></td>
+      <td class="output-purple" id="c-min-cold-${i}">—</td>
+      <td class="output-purple" id="c-max-cold-${i}">—</td>
+      <td id="c-min-hot-${i}" style="background:#ffc7ce;color:#c00000;font-weight:700;">—</td>
+      <td id="c-max-hot-${i}" style="background:#ffc7ce;color:#c00000;font-weight:700;">—</td>
+    </tr>`;
+  }
+}
+
+function buildClrTable() {
+  renderClearanceTable();
+}
+
+function buildSummaryTable() {
+  // Rows built dynamically in recalc
+}
+
+function buildMatLib() {
+  const tbody = document.getElementById('matlib-body');
+  tbody.innerHTML = MATERIALS.map((m,i) => {
+    if (m[1] === null) {
+      return `<tr><td colspan="10" style="background:var(--dark-blue);color:#fff;font-weight:700;padding:8px;text-align:left;">${m[0]}</td></tr>`;
+    }
+    return `<tr>
+      <td style="text-align:left;">${m[0]}</td>
+      <td class="output-teal">${m[1]}</td>
+      <td>${m[2]??'—'}</td>
+      <td>${m[3]??'—'}</td>
+      <td>${m[4]??'—'}</td>
+      <td>${m[5]??'—'}</td>
+      <td>${m[6]??'—'}</td>
+      <td>${m[7]??'—'}</td>
+      <td style="font-size:0.75rem;">${m[8]||'—'}</td>
+      <td style="font-size:0.75rem;text-align:left;">${m[9]||''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Auto-fill CTE when material selected ─────────────────────
+function autoFillCTE(i) {
+  const mat = document.getElementById(`c-mat-${i}`)?.value;
+  const el  = document.getElementById(`c-cte-${i}`);
+  if (el) el.textContent = CTE_MAP[mat] !== undefined ? CTE_MAP[mat] : '—';
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAIN RECALC
+// ══════════════════════════════════════════════════════════════
+function recalc() {
+  const tAmb  = parseFloat(document.getElementById('t-ambient')?.value) ?? 20;
+  const tCold = parseFloat(document.getElementById('t-cold')?.value)    ?? -40;
+  const tHot  = parseFloat(document.getElementById('t-hot')?.value)     ?? 80;
+  const dtCold = tCold - tAmb;
+  const dtHot  = tHot  - tAmb;
+
+  // ΔT display cards
+  document.getElementById('dt-cards').innerHTML = `
+    <div class="result-card blue"><div class="label">ΔT Cold</div><div class="value">${dtCold.toFixed(1)}</div><div class="sub">°C (T_cold − T_ref)</div></div>
+    <div class="result-card purple"><div class="label">ΔT Hot</div><div class="value">+${dtHot.toFixed(1)}</div><div class="sub">°C (T_hot − T_ref)</div></div>
+    <div class="result-card blue"><div class="label">ΔT Worst-Case</div><div class="value">${Math.max(Math.abs(dtCold),Math.abs(dtHot)).toFixed(1)}</div><div class="sub">°C MAX(|cold|,|hot|)</div></div>
+    <div class="result-card amber"><div class="label">Total Range</div><div class="value">${(tHot-tCold).toFixed(1)}</div><div class="sub">°C (T_hot − T_cold)</div></div>
+  `;
+
+  compData = [];
+
+  for (let i = 0; i < N_ROWS; i++) {
+    const mat   = document.getElementById(`c-mat-${i}`)?.value  || '';
+    const meanV = document.getElementById(`c-mean-${i}`)?.value;
+    const nomV  = document.getElementById(`c-nom-${i}`)?.value;
+    const ltolV = document.getElementById(`c-ltol-${i}`)?.value;
+    const utolV = document.getElementById(`c-utol-${i}`)?.value;
+
+    const mean = parseFloat(meanV) || null;
+    const nom  = parseFloat(nomV)  || null;
+    const ltol = parseFloat(ltolV) || 0;
+    const utol = parseFloat(utolV) || 0;
+    const cte  = CTE_MAP[mat] ?? 0;
+
+    // Auto-fill CTE display
+    const cteEl = document.getElementById(`c-cte-${i}`);
+    if (cteEl) cteEl.textContent = cte || '—';
+
+    // Expansion factors
+    const efCold = cte ? 1 + (cte/1e6)*dtCold : null;
+    const efHot  = cte ? 1 + (cte/1e6)*dtHot  : null;
+
+    const efCEl = document.getElementById(`c-ef-cold-${i}`);
+    const efHEl = document.getElementById(`c-ef-hot-${i}`);
+    if (efCEl) efCEl.textContent = efCold !== null ? efCold.toFixed(6) : '—';
+    if (efHEl) efHEl.textContent = efHot  !== null ? efHot.toFixed(6)  : '—';
+
+    // Ambient limits
+    const ambMin = nom !== null ? nom + ltol : null;
+    const ambMax = nom !== null ? nom + utol : null;
+
+    // Cold limits
+    const coldMin = (ambMin !== null && efCold !== null) ? ambMin * efCold : null;
+    const coldMax = (ambMax !== null && efCold !== null) ? ambMax * efCold : null;
+
+    // Hot limits
+    const hotMin = (ambMin !== null && efHot !== null) ? ambMin * efHot : null;
+    const hotMax = (ambMax !== null && efHot !== null) ? ambMax * efHot : null;
+
+    const fmt = v => v !== null ? v.toFixed(3) : '—';
+
+    const minCEl = document.getElementById(`c-min-cold-${i}`);
+    const maxCEl = document.getElementById(`c-max-cold-${i}`);
+    const minHEl = document.getElementById(`c-min-hot-${i}`);
+    const maxHEl = document.getElementById(`c-max-hot-${i}`);
+    if (minCEl) minCEl.textContent = fmt(coldMin);
+    if (maxCEl) maxCEl.textContent = fmt(coldMax);
+    if (minHEl) minHEl.textContent = fmt(hotMin);
+    if (maxHEl) maxHEl.textContent = fmt(hotMax);
+
+    compData.push({ ambMin, ambMax, coldMin, coldMax, hotMin, hotMax, nom, ltol, utol, efCold, efHot });
+  }
+
+  recalcClearance();
+  recalcSummary();
+}
+
+// ── Clearance Pairs ──────────────────────────────────────────
+function renderClearanceTable() {
+  const tbody = document.getElementById('clr-body');
+  tbody.innerHTML = clearancePairs.map((p, j) => `
+  <tr id="clr-row-${j}">
+    <td class="row-num">${j+1}</td>
+    <td><input type="text" id="clr-desc-${j}" value="${p.desc}" oninput="updatePair(${j})" style="width:180px;"/></td>
+    <td><input type="number" id="clr-hole-${j}" value="${p.hole}" min="1" max="${N_ROWS}" oninput="updatePair(${j})" style="width:50px;"/></td>
+    <td><input type="number" id="clr-shaft-${j}" value="${p.shaft}" min="1" max="${N_ROWS}" oninput="updatePair(${j})" style="width:50px;"/></td>
+    <td class="output-teal" id="clr-amb-min-${j}">—</td>
+    <td class="output-teal" id="clr-amb-max-${j}">—</td>
+    <td class="output-purple" id="clr-cold-min-${j}">—</td>
+    <td class="output-purple" id="clr-cold-max-${j}">—</td>
+    <td id="clr-hot-min-${j}" style="background:#ffc7ce;color:#c00000;font-weight:700;">—</td>
+    <td id="clr-hot-max-${j}" style="background:#ffc7ce;color:#c00000;font-weight:700;">—</td>
+    <td id="clr-verdict-${j}">—</td>
+  </tr>`).join('');
+  recalcClearance();
+}
+
+function updatePair(j) {
+  clearancePairs[j].desc  = document.getElementById(`clr-desc-${j}`)?.value  || '';
+  clearancePairs[j].hole  = parseInt(document.getElementById(`clr-hole-${j}`)?.value)  || 1;
+  clearancePairs[j].shaft = parseInt(document.getElementById(`clr-shaft-${j}`)?.value) || 2;
+  recalcClearance();
+}
+
+function addClearancePair() {
+  const desc  = document.getElementById('new-desc')?.value  || 'Clearance';
+  const hole  = parseInt(document.getElementById('new-hole')?.value)  || 1;
+  const shaft = parseInt(document.getElementById('new-shaft')?.value) || 2;
+  clearancePairs.push({ desc, hole, shaft });
+  renderClearanceTable();
+}
+
+function recalcClearance() {
+  clearancePairs.forEach((p, j) => {
+    const h = compData[p.hole  - 1];
+    const s = compData[p.shaft - 1];
+    if (!h || !s) return;
+
+    const fmt = v => v !== null ? v.toFixed(3) : '—';
+    const clrAmbMin = (h.ambMin !== null && s.ambMax !== null) ? h.ambMin - s.ambMax : null;
+    const clrAmbMax = (h.ambMax !== null && s.ambMin !== null) ? h.ambMax - s.ambMin : null;
+    const clrColdMin= (h.coldMin!== null && s.coldMax!== null) ? h.coldMin- s.coldMax: null;
+    const clrColdMax= (h.coldMax!== null && s.coldMin!== null) ? h.coldMax- s.coldMin: null;
+    const clrHotMin = (h.hotMin !== null && s.hotMax !== null) ? h.hotMin - s.hotMax : null;
+    const clrHotMax = (h.hotMax !== null && s.hotMin !== null) ? h.hotMax - s.hotMin : null;
+
+    const setCell = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = fmt(val);
+      if (val !== null) {
+        el.style.color     = val >= 0 ? 'var(--green)' : 'var(--red)';
+        el.style.fontWeight= '700';
+      }
+    };
+    setCell(`clr-amb-min-${j}`, clrAmbMin);
+    setCell(`clr-amb-max-${j}`, clrAmbMax);
+    setCell(`clr-cold-min-${j}`, clrColdMin);
+    setCell(`clr-cold-max-${j}`, clrColdMax);
+    setCell(`clr-hot-min-${j}`, clrHotMin);
+    setCell(`clr-hot-max-${j}`, clrHotMax);
+
+    // Overall verdict
+    const vals = [clrAmbMin, clrAmbMax, clrColdMin, clrColdMax, clrHotMin, clrHotMax].filter(v=>v!==null);
+    const vEl  = document.getElementById(`clr-verdict-${j}`);
+    if (vEl && vals.length) {
+      const allPass = vals.every(v => v >= 0);
+      const anyFail = vals.some(v => v < 0);
+      vEl.innerHTML = allPass
+        ? '<span style="color:var(--green);font-weight:800;">✅ CLEAR</span>'
+        : '<span style="color:var(--red);font-weight:800;">⚠ INTERFERE</span>';
+    }
+  });
+}
+
+// ── Summary ──────────────────────────────────────────────────
+function recalcSummary() {
+  const tbody = document.getElementById('summary-body');
+  if (!tbody) return;
+
+  const rows = [];
+  for (let i = 0; i < N_ROWS; i++) {
+    const name = document.getElementById(`c-comp-${i}`)?.value || `Component ${i+1}`;
+    const d = compData[i];
+    if (!d || d.ambMin === null) continue;
+    const ambBand  = d.ambMax  - d.ambMin;
+    const coldBand = d.coldMax !== null ? d.coldMax - d.coldMin : null;
+    const hotBand  = d.hotMax  !== null ? d.hotMax  - d.hotMin  : null;
+    const shiftCold= d.coldMin !== null ? d.coldMin - d.ambMin  : null;
+    const shiftHot = d.hotMin  !== null ? d.hotMin  - d.ambMin  : null;
+    const pctCold  = d.efCold  !== null ? (d.efCold - 1)*100    : null;
+    const pctHot   = d.efHot   !== null ? (d.efHot  - 1)*100    : null;
+    rows.push({ name, ambBand, coldBand, hotBand, shiftCold, shiftHot, pctCold, pctHot });
+  }
+
+  const fmt  = v => v !== null ? v.toFixed(4) : '—';
+  const fmtP = v => v !== null ? v.toFixed(4)+'%' : '—';
+
+  tbody.innerHTML = rows.map((r,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td style="text-align:left;">${r.name}</td>
+      <td class="output-teal">${fmt(r.ambBand)}</td>
+      <td class="output-purple">${fmt(r.coldBand)}</td>
+      <td style="background:#ffc7ce;color:#c00000;font-weight:700;">${fmt(r.hotBand)}</td>
+      <td class="output-purple">${fmt(r.shiftCold)}</td>
+      <td style="background:#ffc7ce;color:#c00000;font-weight:700;">${fmt(r.shiftHot)}</td>
+      <td class="output-purple">${fmtP(r.pctCold)}</td>
+      <td style="background:#ffc7ce;color:#c00000;font-weight:700;">${fmtP(r.pctHot)}</td>
+    </tr>`).join('');
+
+  // Overall verdict panel
+  let allOk = true;
+  clearancePairs.forEach(p => {
+    const h = compData[p.hole-1], s = compData[p.shaft-1];
+    if (!h||!s) return;
+    const checks = [
+      h.ambMin -s.ambMax, h.coldMin-s.coldMax,
+      h.hotMin -s.hotMax
+    ].filter(v=>v!==null);
+    if (checks.some(v=>v<0)) allOk = false;
+  });
+
+  document.getElementById('verdict-panel').innerHTML = `
+    <div class="panel-title">Overall Verdict</div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <span class="verdict ${allOk?'pass':'fail'}">${allOk?'✅ All clearances PASS':'⚠ INTERFERENCE detected!'}</span>
+      <div style="font-size:0.85rem;color:var(--grey);">
+        Check the Clearance tab for details on each pair across all temperature conditions.
+      </div>
+    </div>
+  `;
+}
+
+// ── Tabs ─────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  const ids = ['tab-temps','tab-components','tab-clearance','tab-summary','tab-matlib'];
+  document.querySelectorAll('.tab-btn').forEach((btn,i)=>btn.classList.toggle('active',ids[i]===id));
+}
+
+// ── Save / Load ───────────────────────────────────────────────
+function saveToJSON() {
+  const data = {
+    type: 'thermal',
+    settings: {
+      model: document.getElementById('p-model')?.value,
+      pn:    document.getElementById('p-pn')?.value,
+      eng:   document.getElementById('p-eng')?.value,
+      appr:  document.getElementById('p-appr')?.value,
+      rev:   document.getElementById('p-rev')?.value,
+      date:  document.getElementById('p-date')?.value,
+      numrows: document.getElementById('p-numrows')?.value,
+      tAmb:  document.getElementById('t-ambient')?.value,
+      tCold: document.getElementById('t-cold')?.value,
+      tHot:  document.getElementById('t-hot')?.value,
+    },
+    rows: [],
+    clearancePairs
+  };
+  for (let i=0;i<N_ROWS;i++) {
+    data.rows.push({
+      comp: document.getElementById(`c-comp-${i}`)?.value,
+      mat:  document.getElementById(`c-mat-${i}`)?.value,
+      feat: document.getElementById(`c-feat-${i}`)?.value,
+      ref:  document.getElementById(`c-ref-${i}`)?.value,
+      mean: document.getElementById(`c-mean-${i}`)?.value,
+      nom:  document.getElementById(`c-nom-${i}`)?.value,
+      ltol: document.getElementById(`c-ltol-${i}`)?.value,
+      utol: document.getElementById(`c-utol-${i}`)?.value,
+    });
+  }
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (data.settings.model||'thermal')+'_thermal.json';
+  a.click();
+}
+
+function loadFromJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const s = data.settings||{};
+      const sv = (id,v) => { const el=document.getElementById(id); if(el&&v!==undefined) el.value=v; };
+      sv('p-model',s.model); sv('p-pn',s.pn); sv('p-eng',s.eng); sv('p-appr',s.appr);
+      sv('p-rev',s.rev); sv('p-date',s.date); sv('p-numrows',s.numrows);
+      sv('t-ambient',s.tAmb); sv('t-cold',s.tCold); sv('t-hot',s.tHot);
+      N_ROWS = parseInt(s.numrows)||10;
+      if (data.clearancePairs) clearancePairs = data.clearancePairs;
+      buildTables();
+      (data.rows||[]).forEach((r,i)=>{
+        if(i>=N_ROWS) return;
+        sv(`c-comp-${i}`,r.comp); sv(`c-mat-${i}`,r.mat);
+        sv(`c-feat-${i}`,r.feat); sv(`c-ref-${i}`,r.ref);
+        sv(`c-mean-${i}`,r.mean); sv(`c-nom-${i}`,r.nom);
+        sv(`c-ltol-${i}`,r.ltol); sv(`c-utol-${i}`,r.utol);
+      });
+      recalc();
+    } catch(err) { alert('Could not load: '+err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function resetAll() {
+  if(!confirm('Reset all data?')) return;
+  clearancePairs = [{ desc:"Clearance: Washer ID – Pin OD", hole:1, shaft:2 }];
+  buildTables();
+  EXAMPLE.forEach((e,i)=>{
+    if(i>=N_ROWS) return;
+    const sv=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
+    sv(`c-comp-${i}`,e.comp); sv(`c-mat-${i}`,e.mat);
+    sv(`c-feat-${i}`,e.feat); sv(`c-ref-${i}`,e.ref);
+    sv(`c-mean-${i}`,e.mean); sv(`c-nom-${i}`,e.nom);
+    sv(`c-ltol-${i}`,e.ltol); sv(`c-utol-${i}`,e.utol);
+  });
+  recalc();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('p-date').value = new Date().toISOString().slice(0,10);
+  buildTables();
+});
+</script>
+</body>
+</html>
